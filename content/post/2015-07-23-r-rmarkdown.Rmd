@@ -1,0 +1,254 @@
+---
+title: "Australian chloropleths in R"
+author: "Hugh Parsonage"
+date: 2017-06-17
+categories: ["R"]
+tags: ["R Markdown", "plot", "regression"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE)
+```
+
+```{r loadPackages}
+library(testthat)
+library(htmltools)
+library(leaflet)
+library(viridis)
+library(dtplyr)
+library(dplyr)
+library(magrittr)
+library(data.table)
+library(jsonlite)
+library(rgdal)
+library(htmlwidgets)  # saving leaflet maps
+```
+
+# Creating maps of Australia
+Australia is a particularly challenging country to map.
+Australia is very large, highly urbanized, with cities far away from each other.
+
+
+
+
+## Accessing the shapefiles using the `ASGS` package
+The `ASGS` package contains the shapefiles in package form for convenience.
+To install, download and install from Dropbox using the following chunk. 
+(I would be interested in alternative methods of package distribution.)
+
+```{r loadASGS}
+if (!requireNamespace("ASGS", quietly = TRUE)) {
+  DropboxInfo <- 
+    if (Sys.getenv("OS") == "Windows_NT") {
+      file.path(Sys.getenv("LOCALAPPDATA"), "Dropbox", "info.json")
+    } else {
+      "~/.dropbox/info.json"
+    }
+  if (file.exists(DropboxInfo)) {
+    Path2Dropbox <- 
+      jsonlite::fromJSON(DropboxInfo) %>%
+      use_series("business") %>%
+      use_series("path")
+    
+    Path2ASGS <-
+      file.path(Path2Dropbox,
+                "Transport Program", 
+                "Project - Congestion", 
+                "Data and analysis",
+                "hughp", 
+                "ASGS_0.0.0.9000.tar.gz")
+    
+    if (file.exists(Path2ASGS)) {
+      install.packages(Path2ASGS, type = "source", repos = NULL)
+    }
+  } else {
+    message("Attempting install of ASGS from Dropbox. This should take some minutes to download.")
+    tempf <- tempfile(fileext = ".tar.gz")
+    download.file(url = "https://www.dropbox.com/s/2bn49iwqqc9iivb/ASGS_0.0.0.9000.tar.gz?dl=1",
+                  destfile = tempf)
+    install.packages(tempf, type = "source", repos = NULL)
+  }
+}
+library(ASGS)
+```
+
+The goal is to produce chloropleths showing the population distribution by SA2.
+
+First, we need to the data itself
+
+```{r ERP_by_SA2}
+ERP_by_SA2 <- fread("~/Data/ABS/Estimated-Resident-Population-SA2x.txt")
+ERP_by_SA2[, SA2_MAIN11 := factor(ASGS_2011)]
+```
+
+## Using base R
+You can plot shapefiles immediately using the `plot` method.
+
+```{r bare-SA2-chloropleth-base-R}
+plot(SA2_2011)
+```
+
+And it is fairly straightforward to create a chloropleth by adding colours
+
+```{r palette_v}
+#' @return Viridis palette of x by quantile (decile by default).
+palette_v <- function(x, n = 10) {
+  input <- data.table(x = x)
+  input[, order := 1:.N]
+  input[, decile := dplyr::ntile(x, n)]
+  
+  colortbl <- data.table(decile = 1:10,
+                         colour = viridis(10))
+  
+  colortbl[input, on = "decile"] %>%
+    setorder(order) %>%
+    .[["colour"]]
+}
+
+pal_v <- colorNumeric(palette = viridis(10),
+                      domain = NULL)
+```
+
+```{r SA2_2011_join}
+# Copy shapefile and join with ERP_by_SA2 to create
+# a column to fill by.
+SA2_2011_join <- 
+  SA2_2011
+
+SA2_2011_join@data <-
+  inner_join(SA2_2011_join@data, ERP_by_SA2, by = "SA2_MAIN11") %>%
+  # + 1 in case any 0sqm regions create NaNs
+  mutate(Density = Value / ((ALBERS_SQM + 1) / 1e6),
+         Density_Decile = ntile(Density, 10))
+```
+
+```{r chloropleth-base-R-Population}
+plot(SA2_2011_join,
+     col = palette_v(SA2_2011_join@data$Value),
+     main = "Population by SA2")
+```
+
+```{r chloropleth-base-R-PopulationDensity}
+plot(SA2_2011_join,
+     col = palette_v(SA2_2011_join@data$Density_Decile),
+     main = "Population density by SA2")
+```
+
+Maps so produced can often be surprisingly 'sufficient'. I often run `dev.copy2pdf(file = "my-map.pdf", width = 200, height = 150)` to 
+create a PDF to look closer at the cities. It's not quite as natural or rich in features as mapps produced via `leaflet()` are below, but it's simple, very reliable,
+and looks great when you zoom in.
+
+## Using leaflet
+Because of the challenges of mapping in Australia,
+interactive chloropleths have considerable appeal.
+Leaflet offers this feature.
+
+(You should run the following two chunks. I've set `eval=FALSE` to reduce the file size of this page from 250 MB to 25 MB!)
+
+```{r leaflet-Population, eval=FALSE}
+SA2_2011_join %>%
+  leaflet %>%
+  addPolygons
+```
+
+This HTML file needs some work, but judicious choices of the options in `addPolygons` can produce elegant maps:
+
+```{r leaflet-Population-viridis, eval = FALSE}
+SA2_2011_join %>%
+  leaflet %>%
+  addPolygons(stroke = TRUE,
+              opacity = 1,
+              weight = 1,  # the border thickness / pixels
+              color = "white",
+              fillColor = ~pal_v(SA2_2011_join@data$Density_Decile), 
+              fillOpacity = 1)
+```
+
+However, this file is quite large (125 MB on my computer). It may be better to use a simplified shapefile. `library(ASGS)` offers `SA2_2011_simple` which is a simplified version (20\%) of `SA2_2011` produced from the GUI at http://mapshaper.org/.
+
+The following produces a 25 MB HTML file.
+
+```{r signif_comma}
+#' @param x
+#' @param digits
+#' @return For values over 1000, a comma()'d version of x to \code{digits} significant figures;  otherwise, 
+#' x to \code{digits} significant places.
+#' 
+#' Using \code{comma(signif(x, 2))} would produce '120,000.0' instead of '120,000'.
+signif_comma <- function(x, digits = 2) {
+  y <- signif(x, digits = digits)
+  out <- y
+  out[log10(x) > 3] <- scales::comma(y[log10(x) > 3])
+  out
+}
+
+expect_equal(signif_comma(c(1.2, 12, 1200, 12000, 120000)),
+             c("1.2", "12", "1,200", "12,000", "120,000"))
+```
+
+```{r SA2_2011_simple_-chloropleth-leaflet, fig.width=10}
+# Copy shapefile and join with ERP_by_SA2 to create
+# a column to fill by.
+
+SA2_2011_simple %>%
+  leaflet %>%
+  addPolygons(stroke = TRUE,
+              opacity = 1,
+              weight = 1,  # the border thickness / pixels
+              color = "black",
+              fillColor = ~pal_v(SA2_2011_join@data$Density_Decile), 
+              fillOpacity = 1,
+              label = lapply(paste0("<b>", 
+                                    SA2_2011_join@data$SA2_NAME11, ":",
+                                    "</b><br>",
+                                    signif_comma(SA2_2011_join@data$Density, 2),
+                                    "/km²"),
+                             HTML),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  color = "white",
+                                                  opacity = 1,
+                                                  dashArray = "",
+                                                  bringToFront = TRUE))
+```
+
+### TopoJSON:
+Further compression can be achieved by reducing the precision of the coordinates.
+Running (again in http://mapshaper.org/)
+
+```bash
+mapshaper -o precision=0.0001 format=topojson out.json
+```
+
+will download a file `out.json` which you can then read into R using `library(geojsonio)`. The resulting chloropleth is 15 MB, which I suspect cannot
+be improved. (Reducing the precision beyond 0.0001 resulted in unsightly overlaps at Walsh Bay.)
+
+
+```{r topojson-low-precision-chloropleth, fig.width=10}
+library(geojsonio)
+# mapshaper -o precision=0.0001 format=topojson out.json
+SA_2011_AUST_20pc <-
+  geojson_read("~/../Downloads/out.json", 
+               what = "sp")
+
+SA_2011_AUST_20pc %>%
+  leaflet %>%
+  addPolygons(stroke = TRUE,
+              opacity = 1,
+              weight = 1,  # the border thickness / pixels
+              color = "black",
+              fillColor = ~pal_v(SA2_2011_join@data$Density_Decile), 
+              fillOpacity = 1,
+              label = lapply(paste0("<b>", 
+                                    SA2_2011_join@data$SA2_NAME11, ":",
+                                    "</b><br>",
+                                    signif_comma(SA2_2011_join@data$Density, 2),
+                                    "/km²"),
+                             HTML),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  color = "white",
+                                                  opacity = 1,
+                                                  dashArray = "",
+                                                  bringToFront = TRUE))
+```
+
+This provides a lightweight, interactive chloropleth. 
