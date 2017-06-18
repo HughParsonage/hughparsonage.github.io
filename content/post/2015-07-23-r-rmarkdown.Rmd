@@ -226,6 +226,8 @@ SA2_2011_simple %>%
 
 This provides a lightweight, interactive chloropleth, as required. 
 
+## Just give me the code
+
 ```{r, united, eval=FALSE}
 ## ----setup, include=FALSE------------------------------------------------
 knitr::opts_chunk$set(collapse = TRUE)
