@@ -27,6 +27,8 @@ library(rgdal)
 library(htmlwidgets)  # saving leaflet maps
 ```
 
+This post was inspired by Peter Ellis's tutorial: https://ellisp.github.io/blog/2017/06/04/military-gdp.
+
 # Creating maps of Australia
 Australia is a particularly challenging country to map.
 Australia is very large, highly urbanized, with cities far away from each other.
@@ -69,6 +71,8 @@ ERP_by_SA2[, SA2_MAIN11 := factor(ASGS_2011)]
 ```
 
 ## Static plot methods
+As an apostrophe, I'll briefly mention the static plot methods available. 
+They're reliable, useful when verifying or debugging, and often surprisingly sufficient.
 
 ### Using `plot()`
 You can plot shapefiles immediately using the `plot` method.
