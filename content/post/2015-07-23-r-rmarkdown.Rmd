@@ -14,6 +14,10 @@ knitr::opts_chunk$set(collapse = TRUE)
 ```
 
 ```{r loadPackages, message=FALSE}
+library(scales)
+library(ggplot2)
+library(ggthemes)
+library(broom)
 library(testthat)
 library(htmltools)
 library(leaflet)
@@ -135,8 +139,24 @@ If you're creating a single, static map to be included in a PDF, I would run `de
 
 However, if the statistic for creating the colours in the chloropleth are likely to change, or you need more flexibility, you should use `ggplot2` with the `geom_polygon` layer to create the map.
 
-### Using `ggplot`
-`.NotYetImplemented`
+### Using `ggplot2`
+Unlike `plot()` and `leaflet()` you can't just magically pipe shapefiles into `ggplot()`, you must first `broom::tidy` them. Slightly disconcertingly, you need to specify the key using the rownames of the tidied shapefile. However, once you overcome that hurdle, you have the immense power of `ggplot2` to work with.
+
+```{r ggplot-population}
+SA2_population_by_id <- ERP_by_SA2[, id := as.character(1:.N - 1)]
+
+SA2_2011 %>%
+  tidy %>%
+  setDT %>%
+  SA2_population_by_id[., on = "id"] %>%
+  ggplot(aes(x = long, y = lat, group = group, fill = Value)) + 
+  geom_polygon() + 
+  scale_fill_viridis("Population", labels = comma) + 
+  coord_map() +
+  theme_map()
+```
+
+Nonetheless, the urban areas are hidden, and rural areas are ridiculously overemphasized.
 
 ## Interactive plots using leaflet
 Because of the challenges of mapping in Australia,
@@ -240,6 +260,10 @@ This provides a lightweight, interactive chloropleth, as required.
 knitr::opts_chunk$set(collapse = TRUE)
 
 ## ----loadPackages, message=FALSE-----------------------------------------
+library(scales)
+library(ggplot2)
+library(ggthemes)
+library(broom)
 library(testthat)
 library(htmltools)
 library(leaflet)
@@ -309,6 +333,19 @@ plot(SA2_2011_join,
 plot(SA2_2011_join,
      col = palette_v(SA2_2011_join@data$Density_Decile),
      main = "Population density by SA2")
+
+## ----ggplot-population---------------------------------------------------
+SA2_population_by_id <- ERP_by_SA2[, id := as.character(1:.N - 1)]
+
+SA2_2011 %>%
+  tidy %>%
+  setDT %>%
+  SA2_population_by_id[., on = "id"] %>%
+  ggplot(aes(x = long, y = lat, group = group, fill = Value)) + 
+  geom_polygon() + 
+  scale_fill_viridis("Population", labels = comma) + 
+  coord_map() +
+  theme_map()
 
 ## ----leaflet-Population, eval=FALSE--------------------------------------
 ## SA2_2011_join %>%
