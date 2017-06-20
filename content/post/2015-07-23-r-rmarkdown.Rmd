@@ -4,6 +4,9 @@ author: "Hugh Parsonage"
 date: 2017-06-17
 categories: ["R"]
 tags: ["R Markdown", "plot", "regression"]
+output:
+  html_document:
+    toc: true
 ---
 
 ```{r setup, include=FALSE}
@@ -28,23 +31,20 @@ library(htmlwidgets)  # saving leaflet maps
 Australia is a particularly challenging country to map.
 Australia is very large, highly urbanized, with cities far away from each other.
 
-There are other challenges too.
-The ABS publishes shapefiles of statistical areas, but doesn't provide an API to access them.
-Although an API is typically associated with frequently changing, small files, the lack of API creates an extra step in this common task. 
-PSMA does publish shapefiles, and provide an API, but they are separated into states (reflecting the jurisdictions' 'ownership' of the files).
-The API also has a nonstandard licence, which purports to allow free use, but contains a caveat that, again, complicates the automated production.[^*]
+In R, there are three steps in creating an interactive map of Australia:
 
-[^*]: The caveat, ironically, is an attempt to prevent junk mail. 
+1. Install and attach the `ASGS` package.
+2. Join your data to the `data` slot of the relevant shapefile
+3. Pipe this shapefile to `leaflet` and `addPolygons` to it.
 
-The other challenge comes with general map making, which after a lot of interrupted resolve, I finally achieved thanks to Peter Ellis's post demonstrating `leaflet`: https://ellisp.github.io/blog/2017/06/04/military-gdp. 
-
-Nonetheless, the first step of producing maps is often the hardest: obtaining the spatial data in the form the mapping software expects.
-
+I'll take you through these steps by demonstrating how to plot the population of Australia by SA2. 
+Population is not terribly interesting, but the data is easily accessible.
 
 ## Accessing the shapefiles using the `ASGS` package
-The `ASGS` package contains the shapefiles from the ABS in package form for convenience.
-To install, download and install from Dropbox using the following chunk. 
-(I would be interested in alternative methods of package distribution.)
+I wrote the `ASGS` package to store the shapefiles from the ABS in package form for convenience and reproducibility.
+To install, download and install from Dropbox using the following chunk.[^1]
+
+[^1]: I would appreciate any advice in how better to distribute the package. Please file an issue at https://github.com/HughParsonage/ASGS/
 
 ```{r loadASGS}
 if (!requireNamespace("ASGS", quietly = TRUE)) {
@@ -58,23 +58,26 @@ if (!requireNamespace("ASGS", quietly = TRUE)) {
 library(ASGS)
 ```
 
-The goal is to produce chloropleths showing the population distribution by SA2.
 
-First, we need the data itself
+## Joining the data
+
+First, we need the data itself. Naturally, this will ordinarily be a task in itself. But the goal is simple: you need a value for each polygon (each SA2 in this case). 
 
 ```{r ERP_by_SA2}
 ERP_by_SA2 <- fread("https://raw.githubusercontent.com/HughParsonage/ABS-data/master/Estimated-Resident-Population-SA2-2016.txt")
 ERP_by_SA2[, SA2_MAIN11 := factor(ASGS_2011)]
 ```
 
-## Using `plot()`
+## Static plot methods
+
+### Using `plot()`
 You can plot shapefiles immediately using the `plot` method.
 
 ```{r bare-SA2-chloropleth-base-R}
 plot(SA2_2011)
 ```
 
-And it is fairly straightforward to create a chloropleth by adding colours
+And it is fairly straightforward to create a chloropleth by adding colours. The following function simply applies palettes given values. Use `palette_v` 
 
 ```{r palette_v}
 #' @return Viridis palette of x by quantile (decile by default).
@@ -128,10 +131,10 @@ If you're creating a single, static map to be included in a PDF, I would run `de
 
 However, if the statistic for creating the colours in the chloropleth are likely to change, or you need more flexibility, you should use `ggplot2` with the `geom_polygon` layer to create the map.
 
-## Using `ggplot`
+### Using `ggplot`
 `.NotYetImplemented`
 
-## Using leaflet
+## Interactive plots using leaflet
 Because of the challenges of mapping in Australia,
 interactive chloropleths have considerable appeal.
 Leaflet through its eponymous R package offers this feature.
