@@ -54,12 +54,12 @@ To install, download and install from Dropbox using the following chunk.[^1]
 
 ```{r loadASGS}
 if (!requireNamespace("ASGS", quietly = TRUE)) {
-  message("Attempting install of ASGS (200 MB) from Dropbox. ",
+  message("Attempting install of ASGS (500 MB) from Dropbox. ",
           "This should take some minutes to download.")
-  tempf <- tempfile(fileext = ".tar.gz")
-  download.file(url = "https://www.dropbox.com/s/ff815l1zkabfb3z/ASGS_0.0.1.tar.gz?dl=1",
+  tempf <- tempfile(fileext = ".zip")
+  download.file(url = "https://www.dropbox.com/s/acn5v30yco4jrx7/ASGS_0.0.3.zip?dl=1",
                 destfile = tempf)
-  install.packages(tempf, type = "source", repos = NULL)
+  install.packages(tempf, repos = NULL)
 }
 library(ASGS)
 ```
@@ -278,12 +278,12 @@ library(htmlwidgets)  # saving leaflet maps
 
 ## ----loadASGS------------------------------------------------------------
 if (!requireNamespace("ASGS", quietly = TRUE)) {
-  message("Attempting install of ASGS (200 MB) from Dropbox. ",
+  message("Attempting install of ASGS (500 MB) from Dropbox. ",
           "This should take some minutes to download.")
-  tempf <- tempfile(fileext = ".tar.gz")
-  download.file(url = "https://www.dropbox.com/s/ff815l1zkabfb3z/ASGS_0.0.1.tar.gz?dl=1",
+  tempf <- tempfile(fileext = ".zip")
+  download.file(url = "https://www.dropbox.com/s/acn5v30yco4jrx7/ASGS_0.0.3.zip?dl=1",
                 destfile = tempf)
-  install.packages(tempf, type = "source", repos = NULL)
+  install.packages(tempf, repos = NULL)
 }
 library(ASGS)
 
