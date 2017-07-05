@@ -116,11 +116,11 @@ Repayment_stress_by_SA2_2011 <-
   .[`Mortgage monthly repayments` == "Households where mortgage payments are 30%, or greater, of household income"] %>% 
   setorderv("%") %>% 
   setnames("%", "Prop_geq_30pc") %>%
-  .[] %>%
+  select(-SA2_MAIN11) %>%
   .[SA2_2011_decoder, on = c("Suburb==SA2_NAME11")] %>%
   select(SA2_MAIN11, Prop_geq_30pc) %>%
   mutate(Prop_geq_30pc = as.numeric(Prop_geq_30pc)) %>%
-  mutate(SA2_MAIN11 = factor(SA2_MAIN11))
+  mutate(SA2_MAIN11 = as.character(SA2_MAIN11))
 
 
 SA2_2011_join <- SA2_2011
@@ -202,7 +202,7 @@ Repayment_stress_by_SA2_2011 <-
   setorderv("%") %>% 
   setnames("%", "Prop_geq_30pc") %>%
   .[] %>%
-  .[SA2_2011_decoder, on = c("Suburb==SA2_NAME11")] %>%
+  .[SA2_2011_decoder, on = c("SA2_MAIN11==SA2_NAME11")] %>%
   select(SA2_MAIN11, Prop_geq_30pc) %>%
   mutate(Prop_geq_30pc = as.numeric(Prop_geq_30pc)) %>%
   mutate(SA2_MAIN11 = factor(SA2_MAIN11))
@@ -221,7 +221,7 @@ SA2_2011_join@data <-
 pal_v <- colorNumeric(palette = gpal(7, reverse = TRUE),
                       domain = NULL)
 p <- 
-  SA2_2011_simple %>%
+  SA2_2011_join %>%
   leaflet %>%
   addPolygons(stroke = TRUE,
               opacity = 1,

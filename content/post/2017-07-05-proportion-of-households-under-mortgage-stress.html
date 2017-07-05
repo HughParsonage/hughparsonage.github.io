@@ -190,18 +190,18 @@ Repayment_stress_by_SA2_2011 &lt;-
   .[`Mortgage monthly repayments` == &quot;Households where mortgage payments are 30%, or greater, of household income&quot;] %&gt;% 
   setorderv(&quot;%&quot;) %&gt;% 
   setnames(&quot;%&quot;, &quot;Prop_geq_30pc&quot;) %&gt;%
-  .[] %&gt;%
+  select(-SA2_MAIN11) %&gt;%
   .[SA2_2011_decoder, on = c(&quot;Suburb==SA2_NAME11&quot;)] %&gt;%
   select(SA2_MAIN11, Prop_geq_30pc) %&gt;%
   mutate(Prop_geq_30pc = as.numeric(Prop_geq_30pc)) %&gt;%
-  mutate(SA2_MAIN11 = factor(SA2_MAIN11))
+  mutate(SA2_MAIN11 = as.character(SA2_MAIN11))
 
 
 SA2_2011_join &lt;- SA2_2011
 SA2_2011_join@data &lt;-
   inner_join(SA2_2011_join@data, Repayment_stress_by_SA2_2011, by = &quot;SA2_MAIN11&quot;)</code></pre>
 <pre><code>## Warning in inner_join_impl(x, y, by$x, by$y, suffix$x, suffix$y): joining
-## factors with different levels, coercing to character vector</code></pre>
+## factor and character vector, coercing into character vector</code></pre>
 <pre class="r"><code>pal_v &lt;- colorNumeric(palette = gpal(7, reverse = TRUE),
                       domain = range(SA2_2011_join@data$Prop_geq_30pc, na.rm = TRUE))</code></pre>
 <pre><code>## I'm going off-piste: The Palette Of Nine is thine. May John have mercy on your soul.</code></pre>
@@ -235,7 +235,7 @@ SA2_2011_join@data &lt;-
   
 saveWidget(p, &quot;leaflet-prop-mortgage-stress.html&quot;, selfcontained = FALSE)</code></pre>
 <pre class="r"><code>p &lt;- 
-  SA2_2011_simple %&gt;%
+  SA2_2011_join %&gt;%
   leaflet %&gt;%
   addPolygons(stroke = TRUE,
               opacity = 1,
@@ -271,7 +271,7 @@ Repayment_stress_by_SA2_2011 &lt;-
   setorderv(&quot;%&quot;) %&gt;% 
   setnames(&quot;%&quot;, &quot;Prop_geq_30pc&quot;) %&gt;%
   .[] %&gt;%
-  .[SA2_2011_decoder, on = c(&quot;Suburb==SA2_NAME11&quot;)] %&gt;%
+  .[SA2_2011_decoder, on = c(&quot;SA2_MAIN11==SA2_NAME11&quot;)] %&gt;%
   select(SA2_MAIN11, Prop_geq_30pc) %&gt;%
   mutate(Prop_geq_30pc = as.numeric(Prop_geq_30pc)) %&gt;%
   mutate(SA2_MAIN11 = factor(SA2_MAIN11))
@@ -292,7 +292,7 @@ SA2_2011_join@data &lt;-
                       domain = NULL)</code></pre>
 <pre><code>## I'm going off-piste: The Palette Of Nine is thine. May John have mercy on your soul.</code></pre>
 <pre class="r"><code>p &lt;- 
-  SA2_2011_simple %&gt;%
+  SA2_2011_join %&gt;%
   leaflet %&gt;%
   addPolygons(stroke = TRUE,
               opacity = 1,
@@ -315,8 +315,10 @@ SA2_2011_join@data &lt;-
             opacity = 1,
             values = ~SA2_2011_join@data$difference,
             # labFormat = labelFormat(suffix = &quot;%&quot;),
-            title = &quot;Percentage point change\nin mortgage stress&quot;)
-saveWidget(p, file = normalizePath(&quot;leaflet-prop-mortgage-stress-difference.html&quot;), selfcontained = FALSE)</code></pre>
+            title = &quot;Percentage point change\nin mortgage stress&quot;)</code></pre>
+<pre><code>## Warning in min(x): no non-missing arguments to min; returning Inf</code></pre>
+<pre><code>## Warning in max(x): no non-missing arguments to max; returning -Inf</code></pre>
+<pre class="r"><code>saveWidget(p, file = normalizePath(&quot;leaflet-prop-mortgage-stress-difference.html&quot;), selfcontained = FALSE)</code></pre>
 
 
 
