@@ -125,6 +125,7 @@ $(document).ready(function () {
 
 
 <pre class="r"><code>library(htmltools) ## HTML()
+library(htmlwidgets)
 library(dplyr)
 library(dtplyr)
 library(data.table)
@@ -137,6 +138,36 @@ library(xml2)
 library(httr)
 library(leaflet)
 library(ASGS)</code></pre>
+<pre class="r"><code>get_mortgage_tbl_2011 &lt;- function(sa2cd) {
+  quick_stats &lt;- read_html(x = paste0(&quot;http://www.censusdata.abs.gov.au/census_services/getproduct/census/2011/quickstat/&quot;, sa2cd, &quot;?opendocument&quot;))
+  
+  tryCatch({
+    
+    TableRaw &lt;-
+      quick_stats %&gt;%
+      html_nodes(xpath = '//*[@id=&quot;dwellingContent&quot;]/table[8]') %&gt;%
+      html_table %&gt;%
+      extract2(1) %&gt;%
+      # Mortgage and %
+      .[, c(1, 2, 3)] %&gt;%
+      as.data.table
+    
+    theSuburb &lt;- names(TableRaw)[2]
+    
+    TableRaw %&gt;%
+      setnames(theSuburb, &quot;dollars&quot;) %&gt;%
+      .[, &quot;Suburb&quot; := theSuburb] %&gt;%
+      .[, SA2_MAIN11 := sa2cd]
+      
+      }, 
+    error = function(e) {
+        data.table:::null.data.table()
+      })
+}
+
+SA2s &lt;- SA2_2011@data$SA2_MAIN11 %&gt;% as.character
+
+Mortgage_payment_tbls11 &lt;- lapply(SA2s, get_mortgage_tbl_2011)</code></pre>
 <pre class="r"><code>Repayment_stress_by_SA2 &lt;- 
   fread(&quot;~/Data/ABS/Mortgage-payment-stress.csv&quot;, na.strings = &quot;--&quot;) %&gt;% 
   .[`Mortgage monthly repayments` == &quot;Households with mortgage repayments greater than 30% of household income&quot;] %&gt;% 
@@ -152,8 +183,27 @@ SA2_2016_join@data &lt;-
   inner_join(SA2_2016_join@data, Repayment_stress_by_SA2, by = &quot;SA2_MAIN16&quot;)</code></pre>
 <pre><code>## Warning in inner_join_impl(x, y, by$x, by$y, suffix$x, suffix$y): joining
 ## factors with different levels, coercing to character vector</code></pre>
+<pre class="r"><code>SA2_2011_decoder &lt;- SA2_2011@data %&gt;% as.data.table
+
+Repayment_stress_by_SA2_2011 &lt;- 
+  fread(&quot;~/Data/ABS/Mortgage-payment-stress-2011.csv&quot;, na.strings = &quot;--&quot;) %&gt;% 
+  .[`Mortgage monthly repayments` == &quot;Households where mortgage payments are 30%, or greater, of household income&quot;] %&gt;% 
+  setorderv(&quot;%&quot;) %&gt;% 
+  setnames(&quot;%&quot;, &quot;Prop_geq_30pc&quot;) %&gt;%
+  .[] %&gt;%
+  .[SA2_2011_decoder, on = c(&quot;Suburb==SA2_NAME11&quot;)] %&gt;%
+  select(SA2_MAIN11, Prop_geq_30pc) %&gt;%
+  mutate(Prop_geq_30pc = as.numeric(Prop_geq_30pc)) %&gt;%
+  mutate(SA2_MAIN11 = factor(SA2_MAIN11))
+
+
+SA2_2011_join &lt;- SA2_2011
+SA2_2011_join@data &lt;-
+  inner_join(SA2_2011_join@data, Repayment_stress_by_SA2_2011, by = &quot;SA2_MAIN11&quot;)</code></pre>
+<pre><code>## Warning in inner_join_impl(x, y, by$x, by$y, suffix$x, suffix$y): joining
+## factors with different levels, coercing to character vector</code></pre>
 <pre class="r"><code>pal_v &lt;- colorNumeric(palette = gpal(7, reverse = TRUE),
-                      domain = NULL)</code></pre>
+                      domain = range(SA2_2011_join@data$Prop_geq_30pc, na.rm = TRUE))</code></pre>
 <pre><code>## I'm going off-piste: The Palette Of Nine is thine. May John have mercy on your soul.</code></pre>
 <pre class="r"><code>p &lt;- 
   SA2_2016_simple %&gt;%
@@ -177,9 +227,96 @@ SA2_2016_join@data &lt;-
                                                   bringToFront = TRUE)) %&gt;%
   addLegend(pal = pal_v, 
             opacity = 1,
-            values = ~SA2_2016_join@data$Prop_geq_30pc,
+            # Use this as the numbers are larger
+            values = ~SA2_2011_join@data$Prop_geq_30pc,
             labFormat = labelFormat(suffix = &quot;%&quot;),
-            title = &quot;% households under mortgage stress&quot;)</code></pre>
+            title = &quot;% households under mortgage stress&quot;) %&gt;%
+  fitBounds(lng1 = 96, lat1 = -44, lng2 = 168, lat2 = -9)
+  
+saveWidget(p, &quot;leaflet-prop-mortgage-stress.html&quot;, selfcontained = FALSE)</code></pre>
+<pre class="r"><code>p &lt;- 
+  SA2_2011_simple %&gt;%
+  leaflet %&gt;%
+  addPolygons(stroke = TRUE,
+              opacity = 1,
+              weight = 1,  # the border thickness / pixels
+              color = &quot;black&quot;,
+              fillColor = ~pal_v(SA2_2011_join@data$Prop_geq_30pc), 
+              fillOpacity = 1,
+              label = lapply(paste0(&quot;&lt;b&gt;&quot;, 
+                                    SA2_2011_join@data$SA2_NAME11, &quot;:&quot;,
+                                    &quot;&lt;/b&gt;&lt;br&gt;&quot;,
+                                    SA2_2011_join@data$Prop_geq_30pc,
+                                    &quot;%&quot;),
+                             HTML),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  color = &quot;white&quot;,
+                                                  opacity = 1,
+                                                  dashArray = &quot;&quot;,
+                                                  bringToFront = TRUE)) %&gt;%
+  addLegend(pal = pal_v, 
+            opacity = 1,
+            # Use this as the numbers are larger
+            values = ~SA2_2011_join@data$Prop_geq_30pc,
+            labFormat = labelFormat(suffix = &quot;%&quot;),
+            title = &quot;% households under mortgage stress&quot;) %&gt;%
+  fitBounds(lng1 = 96, lat1 = -44, lng2 = 168, lat2 = -9)
+
+saveWidget(p, &quot;leaflet-prop-mortgage-stress-2011.html&quot;, selfcontained = FALSE)</code></pre>
+<pre class="r"><code>SA2_2011_decoder &lt;- SA2_2011@data %&gt;% as.data.table
+
+Repayment_stress_by_SA2_2011 &lt;- 
+  fread(&quot;~/Data/ABS/Mortgage-payment-stress-2011.csv&quot;, na.strings = &quot;--&quot;) %&gt;% 
+  .[`Mortgage monthly repayments` == &quot;Households where mortgage payments are 30%, or greater, of household income&quot;] %&gt;% 
+  setorderv(&quot;%&quot;) %&gt;% 
+  setnames(&quot;%&quot;, &quot;Prop_geq_30pc&quot;) %&gt;%
+  .[] %&gt;%
+  .[SA2_2011_decoder, on = c(&quot;Suburb==SA2_NAME11&quot;)] %&gt;%
+  select(SA2_MAIN11, Prop_geq_30pc) %&gt;%
+  mutate(Prop_geq_30pc = as.numeric(Prop_geq_30pc)) %&gt;%
+  mutate(SA2_MAIN11 = factor(SA2_MAIN11))
+
+Repayment_stress_by_SA2_diff &lt;- 
+  Repayment_stress_by_SA2_2011 %&gt;%
+  merge(Repayment_stress_by_SA2, by.x = &quot;SA2_MAIN11&quot;, by.y = &quot;SA2_MAIN16&quot;) %&gt;%
+  mutate(difference = Prop_geq_30pc.y - Prop_geq_30pc.x) %&gt;%
+  select(SA2_MAIN11, difference)
+
+
+SA2_2011_join &lt;- SA2_2011
+SA2_2011_join@data &lt;-
+  inner_join(SA2_2011_join@data, Repayment_stress_by_SA2_diff, by = &quot;SA2_MAIN11&quot;)</code></pre>
+<pre><code>## Warning in inner_join_impl(x, y, by$x, by$y, suffix$x, suffix$y): joining
+## factors with different levels, coercing to character vector</code></pre>
+<pre class="r"><code>pal_v &lt;- colorNumeric(palette = gpal(7, reverse = TRUE),
+                      domain = NULL)</code></pre>
+<pre><code>## I'm going off-piste: The Palette Of Nine is thine. May John have mercy on your soul.</code></pre>
+<pre class="r"><code>p &lt;- 
+  SA2_2011_simple %&gt;%
+  leaflet %&gt;%
+  addPolygons(stroke = TRUE,
+              opacity = 1,
+              weight = 1,  # the border thickness / pixels
+              color = &quot;black&quot;,
+              fillColor = ~pal_v(SA2_2011_join@data$difference), 
+              fillOpacity = 1,
+              label = lapply(paste0(&quot;&lt;b&gt;&quot;, 
+                                    SA2_2011_join@data$SA2_NAME11, &quot;:&quot;,
+                                    &quot;&lt;/b&gt;&lt;br&gt;&quot;,
+                                    SA2_2011_join@data$difference,
+                                    &quot;%&quot;),
+                             HTML),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  color = &quot;white&quot;,
+                                                  opacity = 1,
+                                                  dashArray = &quot;&quot;,
+                                                  bringToFront = TRUE)) %&gt;%
+  addLegend(pal = pal_v, 
+            opacity = 1,
+            values = ~SA2_2011_join@data$difference,
+            # labFormat = labelFormat(suffix = &quot;%&quot;),
+            title = &quot;Percentage point change\nin mortgage stress&quot;)
+saveWidget(p, file = normalizePath(&quot;leaflet-prop-mortgage-stress-difference.html&quot;), selfcontained = FALSE)</code></pre>
 
 
 

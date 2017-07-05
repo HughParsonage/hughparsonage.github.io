@@ -10,6 +10,7 @@ self-contained: false
 
 ```{r, message=FALSE, warning=FALSE}
 library(htmltools) ## HTML()
+library(htmlwidgets)
 library(dplyr)
 library(dtplyr)
 library(data.table)
@@ -107,9 +108,27 @@ Repayment_stress_by_SA2 <-
 SA2_2016_join <- SA2_2016
 SA2_2016_join@data <-
   inner_join(SA2_2016_join@data, Repayment_stress_by_SA2, by = "SA2_MAIN16")
+
+SA2_2011_decoder <- SA2_2011@data %>% as.data.table
+
+Repayment_stress_by_SA2_2011 <- 
+  fread("~/Data/ABS/Mortgage-payment-stress-2011.csv", na.strings = "--") %>% 
+  .[`Mortgage monthly repayments` == "Households where mortgage payments are 30%, or greater, of household income"] %>% 
+  setorderv("%") %>% 
+  setnames("%", "Prop_geq_30pc") %>%
+  .[] %>%
+  .[SA2_2011_decoder, on = c("Suburb==SA2_NAME11")] %>%
+  select(SA2_MAIN11, Prop_geq_30pc) %>%
+  mutate(Prop_geq_30pc = as.numeric(Prop_geq_30pc)) %>%
+  mutate(SA2_MAIN11 = factor(SA2_MAIN11))
+
+
+SA2_2011_join <- SA2_2011
+SA2_2011_join@data <-
+  inner_join(SA2_2011_join@data, Repayment_stress_by_SA2_2011, by = "SA2_MAIN11")
   
 pal_v <- colorNumeric(palette = gpal(7, reverse = TRUE),
-                      domain = NULL)
+                      domain = range(SA2_2011_join@data$Prop_geq_30pc, na.rm = TRUE))
 p <- 
   SA2_2016_simple %>%
   leaflet %>%
@@ -132,32 +151,16 @@ p <-
                                                   bringToFront = TRUE)) %>%
   addLegend(pal = pal_v, 
             opacity = 1,
-            values = ~SA2_2016_join@data$Prop_geq_30pc,
+            # Use this as the numbers are larger
+            values = ~SA2_2011_join@data$Prop_geq_30pc,
             labFormat = labelFormat(suffix = "%"),
-            title = "% households under mortgage stress")
+            title = "% households under mortgage stress") %>%
+  fitBounds(lng1 = 96, lat1 = -44, lng2 = 168, lat2 = -9)
+  
+saveWidget(p, "leaflet-prop-mortgage-stress.html", selfcontained = FALSE)
 ```
 
-```{r Repayment-stress-by-SA2, fig.width=10}
-SA2_2011_decoder <- SA2_2011@data %>% as.data.table
-
-Repayment_stress_by_SA2_2011 <- 
-  fread("~/Data/ABS/Mortgage-payment-stress-2011.csv", na.strings = "--") %>% 
-  .[`Mortgage monthly repayments` == "Households where mortgage payments are 30%, or greater, of household income"] %>% 
-  setorderv("%") %>% 
-  setnames("%", "Prop_geq_30pc") %>%
-  .[] %>%
-  .[SA2_2011_decoder, on = c("Suburb==SA2_NAME11")] %>%
-  select(SA2_MAIN11, Prop_geq_30pc) %>%
-  mutate(Prop_geq_30pc = as.numeric(Prop_geq_30pc)) %>%
-  mutate(SA2_MAIN11 = factor(SA2_MAIN11))
-
-
-SA2_2011_join <- SA2_2011
-SA2_2011_join@data <-
-  inner_join(SA2_2011_join@data, Repayment_stress_by_SA2_2011, by = "SA2_MAIN11")
-  
-pal_v <- colorNumeric(palette = gpal(7, reverse = TRUE),
-                      domain = NULL)
+```{r Repayment-stress-by-SA2-2011, fig.width=10}
 p <- 
   SA2_2011_simple %>%
   leaflet %>%
@@ -180,9 +183,13 @@ p <-
                                                   bringToFront = TRUE)) %>%
   addLegend(pal = pal_v, 
             opacity = 1,
+            # Use this as the numbers are larger
             values = ~SA2_2011_join@data$Prop_geq_30pc,
             labFormat = labelFormat(suffix = "%"),
-            title = "% households under mortgage stress")
+            title = "% households under mortgage stress") %>%
+  fitBounds(lng1 = 96, lat1 = -44, lng2 = 168, lat2 = -9)
+
+saveWidget(p, "leaflet-prop-mortgage-stress-2011.html", selfcontained = FALSE)
 ```
 
 
@@ -238,6 +245,6 @@ p <-
             values = ~SA2_2011_join@data$difference,
             # labFormat = labelFormat(suffix = "%"),
             title = "Percentage point change\nin mortgage stress")
-saveWidget(p, file = normalizePath("./content/post/leaflet-prop-mortgage-stress-difference.html"), selfcontained = FALSE)
+saveWidget(p, file = normalizePath("leaflet-prop-mortgage-stress-difference.html"), selfcontained = FALSE)
 ```
 
