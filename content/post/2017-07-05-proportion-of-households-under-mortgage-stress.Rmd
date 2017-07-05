@@ -56,10 +56,40 @@ Mortgage_payment_tbls <- list(length(SA2_2016@data$SA2_MAIN16))
 
 SA2s <- SA2_2016@data$SA2_MAIN16 %>% as.character
 
-
-Mortgage_payment_tbls1_100 <- lapply(SA2s[1:100], get_mortgage_tbl)
-
 Mortgage_payment_tbls <- lapply(SA2s, get_mortgage_tbl)
+```
+
+```{r get_mortgage_data11, eval=FALSE}
+get_mortgage_tbl_2011 <- function(sa2cd) {
+  quick_stats <- read_html(x = paste0("http://www.censusdata.abs.gov.au/census_services/getproduct/census/2011/quickstat/", sa2cd, "?opendocument"))
+  
+  tryCatch({
+    
+    TableRaw <-
+      quick_stats %>%
+      html_nodes(xpath = '//*[@id="dwellingContent"]/table[8]') %>%
+      html_table %>%
+      extract2(1) %>%
+      # Mortgage and %
+      .[, c(1, 2, 3)] %>%
+      as.data.table
+    
+    theSuburb <- names(TableRaw)[2]
+    
+    TableRaw %>%
+      setnames(theSuburb, "dollars") %>%
+      .[, "Suburb" := theSuburb] %>%
+      .[, SA2_MAIN11 := sa2cd]
+      
+      }, 
+    error = function(e) {
+        data.table:::null.data.table()
+      })
+}
+
+SA2s <- SA2_2011@data$SA2_MAIN11 %>% as.character
+
+Mortgage_payment_tbls11 <- lapply(SA2s, get_mortgage_tbl_2011)
 ```
 
 
@@ -80,8 +110,8 @@ SA2_2016_join@data <-
   
 pal_v <- colorNumeric(palette = gpal(7, reverse = TRUE),
                       domain = NULL)
-
-SA2_2016_simple %>%
+p <- 
+  SA2_2016_simple %>%
   leaflet %>%
   addPolygons(stroke = TRUE,
               opacity = 1,
@@ -105,5 +135,109 @@ SA2_2016_simple %>%
             values = ~SA2_2016_join@data$Prop_geq_30pc,
             labFormat = labelFormat(suffix = "%"),
             title = "% households under mortgage stress")
+```
+
+```{r Repayment-stress-by-SA2, fig.width=10}
+SA2_2011_decoder <- SA2_2011@data %>% as.data.table
+
+Repayment_stress_by_SA2_2011 <- 
+  fread("~/Data/ABS/Mortgage-payment-stress-2011.csv", na.strings = "--") %>% 
+  .[`Mortgage monthly repayments` == "Households where mortgage payments are 30%, or greater, of household income"] %>% 
+  setorderv("%") %>% 
+  setnames("%", "Prop_geq_30pc") %>%
+  .[] %>%
+  .[SA2_2011_decoder, on = c("Suburb==SA2_NAME11")] %>%
+  select(SA2_MAIN11, Prop_geq_30pc) %>%
+  mutate(Prop_geq_30pc = as.numeric(Prop_geq_30pc)) %>%
+  mutate(SA2_MAIN11 = factor(SA2_MAIN11))
+
+
+SA2_2011_join <- SA2_2011
+SA2_2011_join@data <-
+  inner_join(SA2_2011_join@data, Repayment_stress_by_SA2_2011, by = "SA2_MAIN11")
+  
+pal_v <- colorNumeric(palette = gpal(7, reverse = TRUE),
+                      domain = NULL)
+p <- 
+  SA2_2011_simple %>%
+  leaflet %>%
+  addPolygons(stroke = TRUE,
+              opacity = 1,
+              weight = 1,  # the border thickness / pixels
+              color = "black",
+              fillColor = ~pal_v(SA2_2011_join@data$Prop_geq_30pc), 
+              fillOpacity = 1,
+              label = lapply(paste0("<b>", 
+                                    SA2_2011_join@data$SA2_NAME11, ":",
+                                    "</b><br>",
+                                    SA2_2011_join@data$Prop_geq_30pc,
+                                    "%"),
+                             HTML),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  color = "white",
+                                                  opacity = 1,
+                                                  dashArray = "",
+                                                  bringToFront = TRUE)) %>%
+  addLegend(pal = pal_v, 
+            opacity = 1,
+            values = ~SA2_2011_join@data$Prop_geq_30pc,
+            labFormat = labelFormat(suffix = "%"),
+            title = "% households under mortgage stress")
+```
+
+
+```{r Repayment-stress-by-SA2-2011-difference, fig.width=10}
+SA2_2011_decoder <- SA2_2011@data %>% as.data.table
+
+Repayment_stress_by_SA2_2011 <- 
+  fread("~/Data/ABS/Mortgage-payment-stress-2011.csv", na.strings = "--") %>% 
+  .[`Mortgage monthly repayments` == "Households where mortgage payments are 30%, or greater, of household income"] %>% 
+  setorderv("%") %>% 
+  setnames("%", "Prop_geq_30pc") %>%
+  .[] %>%
+  .[SA2_2011_decoder, on = c("Suburb==SA2_NAME11")] %>%
+  select(SA2_MAIN11, Prop_geq_30pc) %>%
+  mutate(Prop_geq_30pc = as.numeric(Prop_geq_30pc)) %>%
+  mutate(SA2_MAIN11 = factor(SA2_MAIN11))
+
+Repayment_stress_by_SA2_diff <- 
+  Repayment_stress_by_SA2_2011 %>%
+  merge(Repayment_stress_by_SA2, by.x = "SA2_MAIN11", by.y = "SA2_MAIN16") %>%
+  mutate(difference = Prop_geq_30pc.y - Prop_geq_30pc.x) %>%
+  select(SA2_MAIN11, difference)
+
+
+SA2_2011_join <- SA2_2011
+SA2_2011_join@data <-
+  inner_join(SA2_2011_join@data, Repayment_stress_by_SA2_diff, by = "SA2_MAIN11")
+  
+pal_v <- colorNumeric(palette = gpal(7, reverse = TRUE),
+                      domain = NULL)
+p <- 
+  SA2_2011_simple %>%
+  leaflet %>%
+  addPolygons(stroke = TRUE,
+              opacity = 1,
+              weight = 1,  # the border thickness / pixels
+              color = "black",
+              fillColor = ~pal_v(SA2_2011_join@data$difference), 
+              fillOpacity = 1,
+              label = lapply(paste0("<b>", 
+                                    SA2_2011_join@data$SA2_NAME11, ":",
+                                    "</b><br>",
+                                    SA2_2011_join@data$difference,
+                                    "%"),
+                             HTML),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  color = "white",
+                                                  opacity = 1,
+                                                  dashArray = "",
+                                                  bringToFront = TRUE)) %>%
+  addLegend(pal = pal_v, 
+            opacity = 1,
+            values = ~SA2_2011_join@data$difference,
+            # labFormat = labelFormat(suffix = "%"),
+            title = "Percentage point change\nin mortgage stress")
+saveWidget(p, file = normalizePath("./content/post/leaflet-prop-mortgage-stress-difference.html"), selfcontained = FALSE)
 ```
 
