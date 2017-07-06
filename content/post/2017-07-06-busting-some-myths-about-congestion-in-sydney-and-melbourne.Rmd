@@ -14,7 +14,7 @@ opts_chunk$set(echo = FALSE)
 
 <sup>Originally published on [the Conversation](https://theconversation.com/stuck-in-traffic-busting-melbourne-versus-sydney-myths-and-identifying-the-worst-commutes-79343)</sup>
 
-Crawling along in second gear, Melbourne drivers often comfort
+Crawling along in low gear, Melbourne drivers often comfort
 themselves with the thought that at least they’re not in Sydney, where
 "everyone knows" traffic delays are longer and even more frustrating.
 Sorry Melburnians, but you’re kidding yourselves.
@@ -26,7 +26,7 @@ conventional wisdom that Sydney-siders are doing it tougher.
 Sydney may have 340,000 more people and an enormous harbour constricting movements from one part of the city to another, 
 but Melbourne is pretty much on a par when it comes to congestion.
 
-## Twin pictures of congestion
+### Twin pictures of congestion
 
 Chart 1 shows the delay that an average CBD commuter endures in Sydney
 and Melbourne, compared to the time it would take to do the trip in the
@@ -155,6 +155,9 @@ It’s similar in Sydney. The average morning commute to the CBD takes 50-60% lo
 It doesn’t take quite as long to get home from the city. In the afternoon peak, an average trip takes up to 60% longer than it would in the middle of the night. But it’s harder to avoid the delay: peak “hour” is much longer in the evening than in the morning. Any time from 3.30pm to 6pm you can expect your trip to take at least 40% longer.
 
 We found these patterns by analysing Google Maps estimates of travel times for more than 300 routes across Sydney and Melbourne. The data include 25 travel-time estimates every day for several months. This includes commutes to the CBD and other employment centres, important freight routes, shorter trips within the inner, middle and outer rings, and cross-city trips.
+
+
+### So which drivers have the worst run?
 
 Here’s a finding that might surprise drivers who have to crawl over the
 Westgate Bridge to get to and from work: the worst place to commute to
