@@ -65,7 +65,6 @@ get_mortgage_tbl_2011 <- function(sa2cd) {
   quick_stats <- read_html(x = paste0("http://www.censusdata.abs.gov.au/census_services/getproduct/census/2011/quickstat/", sa2cd, "?opendocument"))
   
   tryCatch({
-    
     TableRaw <-
       quick_stats %>%
       html_nodes(xpath = '//*[@id="dwellingContent"]/table[8]') %>%
@@ -221,7 +220,7 @@ SA2_2011_join@data <-
 pal_v <- colorNumeric(palette = gpal(7, reverse = TRUE),
                       domain = NULL)
 p <- 
-  SA2_2011_join %>%
+  SA2_2011_simple %>%
   leaflet %>%
   addPolygons(stroke = TRUE,
               opacity = 1,

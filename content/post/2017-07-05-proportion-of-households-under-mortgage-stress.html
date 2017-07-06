@@ -142,7 +142,6 @@ library(ASGS)</code></pre>
   quick_stats &lt;- read_html(x = paste0(&quot;http://www.censusdata.abs.gov.au/census_services/getproduct/census/2011/quickstat/&quot;, sa2cd, &quot;?opendocument&quot;))
   
   tryCatch({
-    
     TableRaw &lt;-
       quick_stats %&gt;%
       html_nodes(xpath = '//*[@id=&quot;dwellingContent&quot;]/table[8]') %&gt;%
@@ -235,7 +234,7 @@ SA2_2011_join@data &lt;-
   
 saveWidget(p, &quot;leaflet-prop-mortgage-stress.html&quot;, selfcontained = FALSE)</code></pre>
 <pre class="r"><code>p &lt;- 
-  SA2_2011_join %&gt;%
+  SA2_2011_simple %&gt;%
   leaflet %&gt;%
   addPolygons(stroke = TRUE,
               opacity = 1,
@@ -292,7 +291,7 @@ SA2_2011_join@data &lt;-
                       domain = NULL)</code></pre>
 <pre><code>## I'm going off-piste: The Palette Of Nine is thine. May John have mercy on your soul.</code></pre>
 <pre class="r"><code>p &lt;- 
-  SA2_2011_join %&gt;%
+  SA2_2011_simple %&gt;%
   leaflet %&gt;%
   addPolygons(stroke = TRUE,
               opacity = 1,
