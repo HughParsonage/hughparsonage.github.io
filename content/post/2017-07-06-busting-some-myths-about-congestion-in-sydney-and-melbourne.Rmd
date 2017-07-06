@@ -1,0 +1,259 @@
+---
+title: Stuck in traffic&#58; busting Melbourne versus Sydney myths and identifying the worst commutes
+author: Marion Terrill
+date: '2017-07-06'
+slug: busting-some-myths-about-congestion-in-sydney-and-melbourne
+categories: []
+tags: []
+---
+
+```{r knitrOpts, echo=FALSE}
+library(knitr)
+opts_chunk$set(echo = FALSE)
+```
+
+<sup>Originally published on [the Conversation](https://theconversation.com/stuck-in-traffic-busting-melbourne-versus-sydney-myths-and-identifying-the-worst-commutes-79343)</sup>
+
+Crawling along in second gear, Melbourne drivers often comfort
+themselves with the thought that at least they’re not in Sydney, where
+"everyone knows" traffic delays are longer and even more frustrating.
+Sorry Melburnians, but you’re kidding yourselves.
+
+New analysis by the Grattan Institute debunks several myths about
+traffic congestion in Australia’s biggest cities – including the
+conventional wisdom that Sydney-siders are doing it tougher.
+
+Sydney may have 340,000 more people and an enormous harbour constricting movements from one part of the city to another, 
+but Melbourne is pretty much on a par when it comes to congestion.
+
+## Twin pictures of congestion
+
+Chart 1 shows the delay that an average CBD commuter endures in Sydney
+and Melbourne, compared to the time it would take to do the trip in the
+early hours of the morning, when the only constraints are traffic lights
+and speed limits.
+
+```{r traffic_data, include=FALSE, message=FALSE}
+library(plotly)
+library(fastmatch)
+library(ggplot2)
+library(scales)
+library(grattanCharts)
+library(dtplyr)
+library(dplyr)
+library(data.table, warn.conflicts = FALSE)
+library(magrittr)
+
+traffic_data <- readRDS("~/Congestion-google-maps-analysis/data/traffic_data.rds")
+MonFri_traffic_data <- traffic_data[day_of_week %between% c(2, 6)]
+```
+
+```{r Chart1, echo=FALSE, include=FALSE}
+# Included here for comparison
+p <-
+  MonFri_traffic_data %>%
+  filter(Classification %fin% c("CBD commuting - to city",
+                                "CBD commuting - from city", 
+                                "Non-CBD employment centre trip",
+                                "Cross city"),
+         City %fin% c("Melbourne", "Sydney")) %>%
+  # trailing spaces cosmetic due to legend
+  mutate(color = paste0(Classification, "  ")) %>%
+  group_by(City = factor(City, levels = c("Sydney", "Melbourne"), ordered = TRUE),
+           color,
+           time_of_day) %>%
+  summarise(increase_in_travel_time = mean(free_flow_ratio - 1), 
+            N = .N) %>%
+  ungroup %>%
+  filter(N > 100) %>%
+  setDT %>%
+  .[, .TheMax := max(increase_in_travel_time), by = "color"] %>%
+  setorder(-.TheMax) %>%
+  .[, color := factor(color, levels = unique(.$color), ordered = TRUE)] %T>%
+  fwrite("~/outbox/megan-chart.csv") %>%
+  grplot(aes(x = time_of_day, y = increase_in_travel_time, color = color)) + 
+  geom_line() + 
+  annotate("segment", 
+           x = -Inf, xend = Inf,
+           y = Inf, yend = Inf, 
+           color = "black") +
+  scale_x_continuous("Time of day", breaks = c(6, 12, 18)) +
+  scale_y_continuous(label = percent) + 
+  guides(color = guide_legend(nrow = 2)) +
+  facet_wrap(~ City, ncol = 2)
+
+print(p)
+```
+
+
+```{r plotly1, echo=FALSE, fig.width=10}
+print_time <- function(timeofday) {
+  hr <- timeofday %/% 1
+  mi <- formatC(60 * (timeofday %% 1), width = 2, flag = "0")
+  
+  paste0(hr, ":", mi)
+}
+
+p <- 
+  MonFri_traffic_data %>%
+  filter(Classification %fin% c("CBD commuting - to city",
+                                "CBD commuting - from city", 
+                                "Non-CBD employment centre trip",
+                                "Cross city"),
+         City %fin% c("Melbourne", "Sydney")) %>%
+  # trailing spaces cosmetic due to legend
+  mutate(color = paste0(Classification, "  ")) %>%
+  group_by(City = factor(City, levels = c("Sydney", "Melbourne"), ordered = TRUE),
+           color,
+           time_of_day) %>%
+  summarise(increase_in_travel_time = mean(free_flow_ratio - 1), 
+            N = .N) %>%
+  ungroup %>%
+  filter(N > 100) %>%
+  setDT %>%
+  .[, .TheMax := max(increase_in_travel_time), by = "color"] %>%
+  setorder(-.TheMax) %>%
+  .[, color := factor(color, levels = unique(.$color), ordered = TRUE)] %>%
+  .[, text := paste0("Time: ", print_time(time_of_day), "\n",
+                     "Increase over free flow: ", percent(increase_in_travel_time), "\n",
+                     color)] %>% 
+  .[, text := trimws(text)] %>%
+  .[, color := factor(color, levels = unique(.$color), ordered = TRUE)] %T>%
+  fwrite("~/outbox/megan-chart.csv") %>%
+  ggplot(aes(x = time_of_day, 
+             y = increase_in_travel_time,
+             color = color,
+             text = text, group = color)) + 
+  geom_line(size = 1) + 
+  annotate("segment", 
+           x = -Inf, xend = Inf,
+           y = Inf, yend = Inf, 
+           color = "black") +
+  scale_x_continuous("Time of day", breaks = c(6, 12, 18)) +
+  scale_y_continuous("Increase in travel time", label = percent) +
+  scale_color_manual(values = gpal(4)) +
+  guides(color = guide_legend(nrow = 2)) +
+  facet_wrap(~ City, ncol = 2) + 
+  theme_bw() +
+  labs(title = "Increase in travel time by time of day") +
+  theme(axis.title.y = element_blank(),
+        plot.title = element_text(hjust = 0),
+        legend.title = element_blank(),
+        plot.margin = margin(9, 9, 9, 18),
+        strip.background = element_blank()) 
+
+ggplotly(p, tooltip = "text")
+```
+
+
+<sup>Data for more than 300 routes travelling to and from the CBD were collected 25 times each day over about 12 weeks between March and June 2017.</sup>
+
+In the morning peak, an average Melbourne CBD commuting trip takes close to 70% longer than it would in the middle of the night. The 11-kilometre trip from Brighton takes an extra 13 minutes, and the 30km trip from Caroline Springs an extra 20 minutes. The 9km from Coburg take an extra 14 minutes, while the 17km from Doncaster take an extra 20 minutes.
+
+It’s similar in Sydney. The average morning commute to the CBD takes 50-60% longer than it would in the middle of the night. The 40km trip from Liverpool takes an extra 32 minutes, while a trip of similar length from Blacktown typically takes an extra 20. Driving the 17km from Manly takes an extra 21 minutes, while the 7km trip from the airport takes an extra 12.
+
+It doesn’t take quite as long to get home from the city. In the afternoon peak, an average trip takes up to 60% longer than it would in the middle of the night. But it’s harder to avoid the delay: peak “hour” is much longer in the evening than in the morning. Any time from 3.30pm to 6pm you can expect your trip to take at least 40% longer.
+
+We found these patterns by analysing Google Maps estimates of travel times for more than 300 routes across Sydney and Melbourne. The data include 25 travel-time estimates every day for several months. This includes commutes to the CBD and other employment centres, important freight routes, shorter trips within the inner, middle and outer rings, and cross-city trips.
+
+Here’s a finding that might surprise drivers who have to crawl over the
+Westgate Bridge to get to and from work: the worst place to commute to
+Melbourne’s CBD is not the rapidly growing western suburbs, it’s the
+north-eastern suburbs. Of course, that probably won’t surprise you if
+your commute includes time on the Eastern Freeway.
+
+Chart 2 shows the typical delay for commuters coming to Melbourne’s CBD
+from the south-east, north-east, north, south and west. The north-east
+is the stand-out worst performer, as those who live in Doncaster,
+Heidelberg and beyond know all too well. Interestingly, people commuting
+from the west face much more modest delays.
+
+```{r Chart2, echo=FALSE, fig.width=10}
+# Poor man's local()
+rm(p)
+p <-
+  MonFri_traffic_data %>%
+    filter(City == "Melbourne",
+         Classification %fin% c("CBD commuting - to city",
+                                "CBD commuting - from city")) %>%
+  mutate(window = if_else(grepl(" to ", Classification),
+                          hour(time) < 12,
+                          hour(time) > 12)) %>%
+  filter(window) %>%
+  mutate(Classification = if_else(Classification == "CBD commuting - to city",
+                                  "To CBD",
+                                  "From CBD"),
+         Classification = factor(Classification, levels = c("To CBD", "From CBD"), ordered = TRUE)) %>%
+  group_by(Classification, Location, time_of_day) %>%
+  summarise(average_ratio = mean(free_flow_ratio - 1), 
+            N = .N) %>%
+  filter(!is.nan(average_ratio), N > 50) %>%
+  .[, text := paste0("<b>", Location, "</b><br>",
+                     print_time(time_of_day), "<br>",
+                     percent(average_ratio))] %>%
+  ggplot(aes(time_of_day, average_ratio, group = Location, colour = Location,
+             text = text)) +
+  geom_line(size = 1) + 
+  scale_x_continuous("Hour of day", breaks = seq(0, 24, by = 2)) +
+  scale_y_continuous("Increase in travel time", label = percent) + 
+  scale_color_manual(values = gpal(5)) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        # Extra space for axis title
+        plot.margin = margin(9, 9, 9, 18),
+        strip.background = element_blank()) +
+  facet_grid(~Classification, scales = "free_x", space = "free_x")
+
+ggplotly(p, tooltip = "text")
+
+```
+
+Sydney does not have a single region where residents can so clearly expect bad city commutes.
+That doesn’t mean there’s no congestion.
+And neither does it mean that it’s just people going to the CBD who are caught up in the commuting tangle.
+It’s also all the freight vehicles, tradespeople, students going to school or uni, people going to appointments in business hours, and others going elsewhere but still caught up in the snarl of traffic.
+
+Chart 3 shows a selection of trips that don’t include the Sydney CBD but do have delays, with the size of delay depending on the direction of the trip.
+
+```{r Chart3, echo=FALSE, fig.width=10}
+p <- 
+  MonFri_traffic_data %>%
+  filter(ROUTE_ID %in% c(-124, 123, 125, 118)) %>%
+  group_by(time_of_day, Suburb = paste(orig_Suburb, "to", dest_Suburb)) %>%
+  summarise(increase_in_travel_time = mean(free_flow_ratio - 1)) %>%
+  .[, text := paste0("<b>", Suburb, "</b><br>",
+                     print_time(time_of_day), "<br>",
+                     percent(increase_in_travel_time))] %>%
+  ggplot(aes(x = time_of_day, y = increase_in_travel_time, group = Suburb, 
+             color = Suburb, 
+             text = text)) + 
+  geom_line(size = 1) + 
+  scale_x_continuous("Hour of day", breaks = seq(6, 18, by = 6),
+                     labels = function(x) paste0(x, ":00")) +
+  scale_y_continuous("Increase in travel time", label = percent) + 
+  scale_color_manual(values = gpal(5)) +
+  theme_bw() +
+  theme(legend.title = element_blank(),
+        plot.margin = margin(9, 9, 9, 18),
+        strip.background = element_blank()) + 
+  geom_blank(aes(x = 17, y = 0.75))
+
+ggplotly(p, tooltip = "text")
+```
+
+Of course, the how-long-does-it-take-you-to-get-to-work story involves
+more than roads. A quarter of Sydney commuters and 18 per cent of
+Melbourne commuters use public transport,[^1] and these figures are much
+higher for commuters to the CBD.[^2] Nonetheless, more than eight of
+every 10 kilometres of travel by Melburnians is by car.[^3]
+
+What happens on our roads affects the daily lives of most city dwellers, as well as the social and economic rhythms of the city. The Grattan Institute will publish a fuller analysis of congestion in coming months, to help governments make the best use of our transport networks – and reduce your time on the road.
+
+[^1]: <https://bitre.gov.au/publications/2014/files/is_059.pdf> Table 1.
+
+[^2]: <https://blogs.crikey.com.au/theurbanist/2015/01/21/why-do-commuters-drive-to-work-instead-of-taking-transit/>
+
+[^3]: <https://bitre.gov.au/publications/2016/files/BITRE_yearbook_2016_statistics_full_report.pdf>
+    Table T3.3b.
+
+
