@@ -250,8 +250,44 @@ SA2_2011_simple %>%
                                                   bringToFront = TRUE))
 ```
 
-
 This provides a lightweight, interactive chloropleth, as required. 
+
+## Smoothed chloropleth
+To smooth chloropleth, you can use the following function.
+(As you can see, the function is still in development.)
+
+```{r smoothed-chloropleth, fig.width=10}
+y <- smooth_shapefile(shapefile = SA2_2011,
+                      data_by_id = ERP_by_SA2,
+                      id = "SA2_MAIN11",
+                      var2smooth = "Value",
+                      coalesce.to = as.integer(0L), 
+                      k = 10)
+
+pal_v <- colorNumeric(palette = viridis::viridis(6), domain = NULL)
+
+SA2_2011_simple %>%
+  leaflet() %>%
+  addPolygons(fillOpacity = 1,
+              stroke = TRUE,
+              weight = 1,
+              color = "black",
+              fillColor = ~pal_v(y),
+              opacity = 1,
+              smoothFactor = 2,
+              label = lapply(paste0("<strong>",
+                                    as.character(SA2_2011@data$SA2_NAME11), ":",
+                                    "</strong><br>",
+                                    signif_comma(as.numeric(ERP_by_SA2$Value))),
+                             HTML),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  color = "white",
+                                                  opacity = 1,
+                                                  dashArray = "",
+                                                  bringToFront = TRUE))
+
+```
+
 
 ## Just give me the code
 
@@ -394,7 +430,7 @@ SA2_2011_simple %>%
               label = lapply(paste0("<b>", 
                                     SA2_2011_join@data$SA2_NAME11, ":",
                                     "</b><br>",
-                                    signif_comma(SA2_2011_join@data$Density, 2),
+                                    signif_comma(ERP_by_SA2$, 2),
                                     "/km²"),
                              HTML),
               highlightOptions = highlightOptions(weight = 2,
@@ -402,5 +438,35 @@ SA2_2011_simple %>%
                                                   opacity = 1,
                                                   dashArray = "",
                                                   bringToFront = TRUE))
+## ----smoothed-chloropleth, fig.width=10
+y <- smooth_shapefile(shapefile = SA2_2011,
+                      data_by_id = ERP_by_SA2,
+                      id = "SA2_MAIN11",
+                      var2smooth = "Value",
+                      coalesce.to = as.integer(mean(ERP_by_SA2$Value, na.rm = TRUE)), 
+                      k = 10)
+
+pal_v <- colorNumeric(palette = viridis::viridis(6), domain = NULL)
+
+SA2_2011_simple %>%
+  leaflet() %>%
+  addPolygons(fillOpacity = 1,
+              stroke = TRUE,
+              weight = 1,
+              color = "black",
+              fillColor = ~pal_v(y),
+              opacity = 1,
+              smoothFactor = 2,
+              label = lapply(paste0("<strong>",
+                                    as.character(SA2_2011@data$SA2_NAME11), ":",
+                                    "</strong><br>",
+                                    signif_comma(as.numeric(ERP_by_SA2$Value))),
+                             HTML),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  color = "white",
+                                                  opacity = 1,
+                                                  dashArray = "",
+                                                  bringToFront = TRUE))
+
 
 ```
