@@ -56,10 +56,10 @@ To install, download and install from Dropbox using the following chunk.[^1]
 if (!requireNamespace("ASGS", quietly = TRUE)) {
   message("Attempting install of ASGS (500 MB) from Dropbox. ",
           "This should take some minutes to download.")
-  tempf <- tempfile(fileext = ".zip")
-  download.file(url = "https://www.dropbox.com/s/acn5v30yco4jrx7/ASGS_0.0.3.zip?dl=1",
+  tempf <- tempfile(fileext = ".tar.gz")
+  download.file(url = "https://dl.dropbox.com/s/5za8ozzp39dce5p/ASGS_0.1.0.tar.gz",
                 destfile = tempf)
-  install.packages(tempf, repos = NULL)
+  install.packages(tempf, repos = NULL, type = "source")
 }
 library(ASGS)
 ```
