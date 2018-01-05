@@ -54,10 +54,10 @@ To install, download and install from Dropbox using the following chunk.[^1]
 
 ```{r loadASGS}
 if (!requireNamespace("ASGS", quietly = TRUE)) {
-  message("Attempting install of ASGS (500 MB) from Dropbox. ",
+  message("Attempting install of ASGS (700 MB) from Dropbox. ",
           "This should take some minutes to download.")
   tempf <- tempfile(fileext = ".tar.gz")
-  download.file(url = "https://dl.dropbox.com/s/5za8ozzp39dce5p/ASGS_0.1.0.tar.gz",
+  download.file(url = "https://dl.dropbox.com/s/zmggqb1wmmv7mqe/ASGS_0.4.0.tar.gz",
                 destfile = tempf)
   install.packages(tempf, repos = NULL, type = "source")
 }
@@ -70,7 +70,7 @@ library(ASGS)
 First, we need the data itself. Naturally, this will ordinarily be a task in itself. But the goal is simple: you need a value for each polygon (each SA2 in this case). 
 
 ```{r ERP_by_SA2}
-ERP_by_SA2 <- fread("https://raw.githubusercontent.com/HughParsonage/ABS-data/master/Estimated-Resident-Population-SA2-2016.txt")
+ERP_by_SA2 <- fread("https://raw.githubusercontent.com/HughParsonage/ABS-data/e8d85c749052bf15038971848402cb42ce0d6227/Estimated-Resident-Population-SA2-2016.txt")
 ERP_by_SA2[, SA2_MAIN11 := factor(ASGS_2011)]
 ```
 
@@ -252,41 +252,7 @@ SA2_2011_simple %>%
 
 This provides a lightweight, interactive chloropleth, as required. 
 
-## Smoothed chloropleth
-To smooth chloropleth, you can use the following function.
-(As you can see, the function is still in development.)
 
-```{r smoothed-chloropleth, fig.width=10}
-y <- smooth_shapefile(shapefile = SA2_2011,
-                      data_by_id = ERP_by_SA2,
-                      id = "SA2_MAIN11",
-                      var2smooth = "Value",
-                      coalesce.to = as.integer(0L), 
-                      k = 10)
-
-pal_v <- colorNumeric(palette = viridis::viridis(6), domain = NULL)
-
-SA2_2011_simple %>%
-  leaflet() %>%
-  addPolygons(fillOpacity = 1,
-              stroke = TRUE,
-              weight = 1,
-              color = "black",
-              fillColor = ~pal_v(y),
-              opacity = 1,
-              smoothFactor = 2,
-              label = lapply(paste0("<strong>",
-                                    as.character(SA2_2011@data$SA2_NAME11), ":",
-                                    "</strong><br>",
-                                    signif_comma(as.numeric(ERP_by_SA2$Value))),
-                             HTML),
-              highlightOptions = highlightOptions(weight = 2,
-                                                  color = "white",
-                                                  opacity = 1,
-                                                  dashArray = "",
-                                                  bringToFront = TRUE))
-
-```
 
 
 ## Just give me the code
