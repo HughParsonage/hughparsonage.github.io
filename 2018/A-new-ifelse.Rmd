@@ -1,0 +1,254 @@
+---
+title: "A new ifelse"
+author: "Hugh Parsonage"
+date: "3 May 2018"
+output: html_document
+---
+
+```{r knitOpts}
+library(knitr)
+options(digits = 2)
+```
+
+## Summary
+
+`ifelse` can be made significantly faster without loss of backwards-compatibility by using `anyNA` and falling back to the original code
+
+
+### Current `ifelse`:
+
+```{r ifelse-original}
+ifelse <- function (test, yes, no)
+{
+    if(is.atomic(test)) { # do not lose attributes
+        if (typeof(test) != "logical")
+            storage.mode(test) <- "logical"
+        ## quick return for cases where 'ifelse(a, x, y)' is used
+        ## instead of 'if (a) x else y'
+        if (length(test) == 1 && is.null(attributes(test))) {
+            if (is.na(test)) return(NA)
+            else if (test) {
+                if (length(yes) == 1) {
+                    yat <- attributes(yes)
+                    if (is.null(yat) || (is.function(yes) &&
+                                         identical(names(yat), "srcref")))
+                        return(yes)
+                }
+            }
+            else if (length(no) == 1) {
+                nat <- attributes(no)
+                if (is.null(nat) || (is.function(no) &&
+                                     identical(names(nat), "srcref")))
+                    return(no)
+            }
+        }
+    }
+    else ## typically a "class"; storage.mode<-() typically fails
+	test <- if(isS4(test)) methods::as(test, "logical") else as.logical(test)
+    ans <- test
+    ok <- !is.na(test)
+    if (any(test[ok]))
+	ans[test & ok] <- rep(yes, length.out = length(ans))[test & ok]
+    if (any(!test[ok]))
+	ans[!test & ok] <- rep(no, length.out = length(ans))[!test & ok]
+    ans
+}
+```
+
+The proposal is to change `ifelse` to take advantage of the speed of `anyNA()`, use `is.na` only once after (and only if needed), and to take advantage of the predictable nature of `ifelse` when the lengths of `test`, `yes`, and `no` are equal or length-one.
+
+I also correct an apparent bug in `ifelse` where the attributes of `test` are not saved if `isS4(test)`. 
+
+```{r new-ifelse}
+.ifelse <- function(test, yes, no) {
+  ans <- test
+  ok <- !is.na(test)
+  if (any(test[ok]))
+    ans[test & ok] <- rep(yes, length.out = length(ans))[test & ok]
+  if (any(!test[ok]))
+    ans[!test & ok] <- rep(no, length.out = length(ans))[!test & ok]
+  ans
+}
+
+ifelse <- function (test, yes, no)
+{
+  attributes_of_test <- attributes(test)
+  
+  if(is.atomic(test)) { # do not lose attributes
+    if (typeof(test) != "logical")
+      storage.mode(test) <- "logical"
+    ## quick return for cases where 'ifelse(a, x, y)' is used
+    ## instead of 'if (a) x else y'
+    if (length(test) == 1 && is.null(attributes_of_test)) {
+      if (is.na(test)) return(NA)
+      else if (test) {
+        if (length(yes) == 1) {
+          yat <- attributes(yes)
+          if (is.null(yat) || (is.function(yes) &&
+                               identical(names(yat), "srcref")))
+            return(yes)
+        }
+      }
+      else if (length(no) == 1) {
+        nat <- attributes(no)
+        if (is.null(nat) || (is.function(no) &&
+                             identical(names(nat), "srcref")))
+          return(no)
+      }
+    }
+  }
+  else ## typically a "class"; storage.mode<-() typically fails
+    test <- if(isS4(test)) methods::as(test, "logical") else as.logical(test)
+  
+  # Give up attempting backwards-compatibility under these conditions:
+  if (typeof(yes) %in% c("logical", "integer", "double", "character") &&
+      typeof(no)  %in% c("logical", "integer", "double", "character") &&
+      !is.factor(yes) &&
+      !is.factor(no) &&
+      length(no) != 0L &&
+      length(yes) != 0L) {
+    if (length(no) == length(test)) {
+      out <- no
+    } else if (length(no) == 1L) {
+      out <- rep_len(no, length(test))
+    } else if (length(no) != 0L) {
+      out <- rep_len(no[1L], length(test))
+    } else {
+      return(.ifelse(test, yes, no))
+    }
+    
+    if (length(yes) != 1L && length(yes) != length(test)) {
+      return(.ifelse(test, yes, no))
+    }
+    
+    
+    if (anyNA(test)) {
+      # no benefit to saving the na results
+      Yes <- which(test)
+      out[is.na(test)] <- NA
+      if (length(yes) == 1L) {
+        out[Yes] <- yes
+      } else if (length(yes) == length(test)) {
+        out[Yes] <- yes[Yes]
+      } else {
+        return(.ifelse(test, yes, no))
+      }
+    } else {
+      # No NAs to deal with
+      if (length(yes) == 1L) {
+        out[test] <- yes
+      } else if (length(yes) == length(test)) {
+        wtest <- which(test) # faster than test directly
+        out[wtest] <- yes[wtest]
+      } else {
+        return(.ifelse(test, yes, no))
+      }
+    }
+    if (!is.null(attributes_of_test)) {
+      attributes(out) <- attributes_of_test
+    }
+    
+    out
+  } else {
+    return(.ifelse(test, yes, no))
+  }
+}
+```
+
+
+### Unit tests
+
+```{r test_identicals}
+test_identicals <- function(test, yes, no) {
+  old <- base::ifelse(test, yes, no)
+  new <- ifelse(test, yes, no)
+  if (!identical(old, new)) {
+    # Will take a few minutes otherwise
+    if (length(old)  + length(new) < 50) {
+      print(old)
+      print(new)
+    }
+    cat("Non-identical result\n")
+    return(invisible(list(old = old, 
+                          new = new)))
+  }
+}
+```
+
+```{r unit-tests}
+# Attributes?
+test1 <- c(a = FALSE, b = FALSE, c = TRUE, d = TRUE, e = TRUE)
+test_identicals(test1, 1:4 + 0.0, 3)
+yes1 <- 1:4 + 0
+names(yes1) <- "srcref"
+test_identicals(test1, yes1, 2:3)
+
+test2 <- sample(test1, size = 1e7, replace = TRUE)
+test_identicals(test2, 1:4 + 0.0, 3)
+test2[5e5] <- NA
+test_identicals(test2, 1:4 + 0.0, 3)
+```
+
+As aformentioned, `S4` classes did not retain attributes:
+```{r}
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  library(Matrix)
+  M <- Matrix(-10 + 1:28, 4, 7)
+  test_identicals(M, 1, 2)
+}
+```
+
+These examples simply fall back to the defaults.
+
+```{r}
+test_identicals(c(TRUE, TRUE), "a", raw(0x95))
+test_identicals(c(TRUE, TRUE), "a", factor("a"))
+test_identicals(c(FALSE, FALSE), "a", factor("a"))
+test_identicals(c(FALSE, TRUE), 1 , factor("a"))
+test_identicals(c(FALSE, TRUE, NA), 1, factor("a"))
+```
+
+
+## Benchmarks
+```{r}
+library(microbenchmark)
+library(ggplot2)
+print_mb <- function(mb) {
+  print(mb)
+  autoplot(mb)
+}
+```
+
+```{r single-yes-no, fig.cap="No NAs, len(yes)=len(no)=1"}
+test1 <- sample(c(TRUE, FALSE), size = 1e6, replace = TRUE)
+yes1 <- 1L
+no1 <- -1L
+print_mb(microbenchmark(ifelse(test1, yes1, no1), base::ifelse(test1, yes1, no1)))
+```
+
+```{r multi-yes-no, fig.cap="No NAs, len(yes)=len(no)=len(test)"}
+test1 <- sample(c(TRUE, FALSE), size = 1e6, replace = TRUE)
+yes1 <- 1:1e6
+no1 <- -yes1
+print_mb(microbenchmark(ifelse(test1, yes1, no1), base::ifelse(test1, yes1, no1)))
+```
+
+```{r multi-yes-no-NAs, fig.cap="NAs, len(yes)=len(no)=len(test)"}
+test3 <- test1
+test3[5e5] <- NA
+print_mb(microbenchmark(ifelse(test3, yes1, no1), base::ifelse(test3, yes1, no1)))
+```
+
+```{r small-test-single-yes-no}
+for (pow in 1:4) {
+  test1 <- sample(c(TRUE, FALSE), size = 10^pow, replace = TRUE)
+  yes1 <- 1L
+  no1 <- -1L
+  print(prettyNum(10^pow, big.mark = ","))
+  print_mb(microbenchmark(ifelse(test1, yes1, no1), base::ifelse(test1, yes1, no1)))
+}
+```
+
+
+
+
