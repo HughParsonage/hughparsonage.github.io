@@ -12,7 +12,7 @@ options(digits = 2)
 
 ## Summary
 
-`ifelse` can be made significantly faster without loss of backwards-compatibility by using `anyNA` and falling back to the original code
+`ifelse` can be made significantly faster without loss of backwards-compatibility by using `anyNA` and falling back to the original code whenever backwards-compatibility cannot be assured.
 
 
 ### Current `ifelse`:
