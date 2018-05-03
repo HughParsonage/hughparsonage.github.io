@@ -111,8 +111,6 @@ ifelse <- function (test, yes, no)
       out <- no
     } else if (length(no) == 1L) {
       out <- rep_len(no, length(test))
-    } else if (length(no) != 0L) {
-      out <- rep_len(no[1L], length(test))
     } else {
       return(.ifelse(test, yes, no))
     }
@@ -215,7 +213,7 @@ library(microbenchmark)
 library(ggplot2)
 print_mb <- function(mb) {
   print(mb)
-  autoplot(mb)
+  print(autoplot(mb))
 }
 ```
 
