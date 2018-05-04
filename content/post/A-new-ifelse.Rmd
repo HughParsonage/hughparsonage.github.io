@@ -17,13 +17,13 @@ options(digits = 2)
 
 ### Current `ifelse`:
 
-```{r ifelse-original}
-ifelse <- function (test, yes, no)
+```{r new_ifelse-original}
+old_ifelse <- function (test, yes, no)
 {
     if(is.atomic(test)) { # do not lose attributes
         if (typeof(test) != "logical")
             storage.mode(test) <- "logical"
-        ## quick return for cases where 'ifelse(a, x, y)' is used
+        ## quick return for cases where 'new_ifelse(a, x, y)' is used
         ## instead of 'if (a) x else y'
         if (length(test) == 1 && is.null(attributes(test))) {
             if (is.na(test)) return(NA)
@@ -59,8 +59,8 @@ The proposal is to change `ifelse` to take advantage of the speed of `anyNA()`, 
 
 I also correct an apparent bug in `ifelse` where the attributes of `test` are not saved if `isS4(test)`. 
 
-```{r new-ifelse}
-.ifelse <- function(test, yes, no) {
+```{r new_ifelse}
+.new_ifelse <- function(test, yes, no) {
   ans <- test
   ok <- !is.na(test)
   if (any(test[ok]))
@@ -70,14 +70,14 @@ I also correct an apparent bug in `ifelse` where the attributes of `test` are no
   ans
 }
 
-ifelse <- function (test, yes, no)
+new_ifelse <- function (test, yes, no)
 {
   attributes_of_test <- attributes(test)
   
   if(is.atomic(test)) { # do not lose attributes
     if (typeof(test) != "logical")
       storage.mode(test) <- "logical"
-    ## quick return for cases where 'ifelse(a, x, y)' is used
+    ## quick return for cases where 'new_ifelse(a, x, y)' is used
     ## instead of 'if (a) x else y'
     if (length(test) == 1 && is.null(attributes_of_test)) {
       if (is.na(test)) return(NA)
@@ -112,11 +112,11 @@ ifelse <- function (test, yes, no)
     } else if (length(no) == 1L) {
       out <- rep_len(no, length(test))
     } else {
-      return(.ifelse(test, yes, no))
+      return(.new_ifelse(test, yes, no))
     }
     
     if (length(yes) != 1L && length(yes) != length(test)) {
-      return(.ifelse(test, yes, no))
+      return(.new_ifelse(test, yes, no))
     }
     
     
@@ -129,7 +129,7 @@ ifelse <- function (test, yes, no)
       } else if (length(yes) == length(test)) {
         out[Yes] <- yes[Yes]
       } else {
-        return(.ifelse(test, yes, no))
+        return(.new_ifelse(test, yes, no))
       }
     } else {
       # No NAs to deal with
@@ -139,7 +139,7 @@ ifelse <- function (test, yes, no)
         wtest <- which(test) # faster than test directly
         out[wtest] <- yes[wtest]
       } else {
-        return(.ifelse(test, yes, no))
+        return(.new_ifelse(test, yes, no))
       }
     }
     if (!is.null(attributes_of_test)) {
@@ -148,9 +148,105 @@ ifelse <- function (test, yes, no)
     
     out
   } else {
-    return(.ifelse(test, yes, no))
+    ans <- test
+    ok <- !is.na(test)
+    if (any(test[ok]))
+      ans[test & ok] <- rep(yes, length.out = length(ans))[test & ok]
+    if (any(!test[ok]))
+      ans[!test & ok] <- rep(no, length.out = length(ans))[!test & ok]
+    ans
   }
 }
+
+new_ifelse100 <- function (test, yes, no)
+{
+  attributes_of_test <- attributes(test)
+  
+  if(is.atomic(test)) { # do not lose attributes
+    if (typeof(test) != "logical")
+      storage.mode(test) <- "logical"
+    ## quick return for cases where 'new_ifelse(a, x, y)' is used
+    ## instead of 'if (a) x else y'
+    if (length(test) == 1 && is.null(attributes_of_test)) {
+      if (is.na(test)) return(NA)
+      else if (test) {
+        if (length(yes) == 1) {
+          yat <- attributes(yes)
+          if (is.null(yat) || (is.function(yes) &&
+                               identical(names(yat), "srcref")))
+            return(yes)
+        }
+      }
+      else if (length(no) == 1) {
+        nat <- attributes(no)
+        if (is.null(nat) || (is.function(no) &&
+                             identical(names(nat), "srcref")))
+          return(no)
+      }
+    }
+  }
+  else ## typically a "class"; storage.mode<-() typically fails
+    test <- if(isS4(test)) methods::as(test, "logical") else as.logical(test)
+  
+  # Give up attempting backwards-compatibility under these conditions:
+  if (length(test) > 100L &&
+      typeof(yes) %in% c("logical", "integer", "double", "character") &&
+      typeof(no)  %in% c("logical", "integer", "double", "character") &&
+      !is.factor(yes) &&
+      !is.factor(no) &&
+      length(no) != 0L &&
+      length(yes) != 0L) {
+    if (length(no) == length(test)) {
+      out <- no
+    } else if (length(no) == 1L) {
+      out <- rep_len(no, length(test))
+    } else {
+      return(.new_ifelse(test, yes, no))
+    }
+    
+    if (length(yes) != 1L && length(yes) != length(test)) {
+      return(.new_ifelse(test, yes, no))
+    }
+    
+    
+    if (anyNA(test)) {
+      # no benefit to saving the na results
+      Yes <- which(test)
+      out[is.na(test)] <- NA
+      if (length(yes) == 1L) {
+        out[Yes] <- yes
+      } else if (length(yes) == length(test)) {
+        out[Yes] <- yes[Yes]
+      } else {
+        return(.new_ifelse(test, yes, no))
+      }
+    } else {
+      # No NAs to deal with
+      if (length(yes) == 1L) {
+        out[test] <- yes
+      } else if (length(yes) == length(test)) {
+        wtest <- which(test) # faster than test directly
+        out[wtest] <- yes[wtest]
+      } else {
+        return(.new_ifelse(test, yes, no))
+      }
+    }
+    if (!is.null(attributes_of_test)) {
+      attributes(out) <- attributes_of_test
+    }
+    
+    out
+  } else {
+    ans <- test
+    ok <- !is.na(test)
+    if (any(test[ok]))
+      ans[test & ok] <- rep(yes, length.out = length(ans))[test & ok]
+    if (any(!test[ok]))
+      ans[!test & ok] <- rep(no, length.out = length(ans))[!test & ok]
+    ans
+  }
+}
+
 ```
 
 
@@ -158,8 +254,8 @@ ifelse <- function (test, yes, no)
 
 ```{r test_identicals}
 test_identicals <- function(test, yes, no) {
-  old <- base::ifelse(test, yes, no)
-  new <- ifelse(test, yes, no)
+  old <- old_ifelse(test, yes, no)
+  new <- new_ifelse(test, yes, no)
   if (!identical(old, new)) {
     # Will take a few minutes otherwise
     if (length(old)  + length(new) < 50) {
@@ -208,43 +304,48 @@ test_identicals(c(FALSE, TRUE, NA), 1, factor("a"))
 
 
 ## Benchmarks
-```{r}
-library(microbenchmark)
+
+```{r small-test-single-yes-no, fig.width=11, fig.height=11}
+library(data.table)
 library(ggplot2)
-print_mb <- function(mb) {
-  print(mb)
-  print(autoplot(mb))
+library(microbenchmark)
+library(scales)
+get_avg_time <- function(n, yes1 = TRUE, include_NA = FALSE) {
+  test <- sample(c(TRUE, FALSE, if (include_NA) NA), size = n, replace = TRUE)
+  if (yes1) {
+    yes <- -1L
+  } else {
+    yes <- sample.int(n)
+  }
+  no <- 1L
+  old <- as.data.table(microbenchmark(old_ifelse(test, yes, no)), times = if (n < 1e3) 100 else 10)
+  new <- as.data.table(microbenchmark(new_ifelse(test, yes, no)), times = if (n < 1e3) 100 else 10)
+  new100 <- as.data.table(microbenchmark(new_ifelse100(test, yes, no)), times = if (n < 1e3) 100 else 10)
+  
+  nmed <- new100[, median(time)]
+  omed <- old[, median(time)]
+  list(old[, median(time)], 
+       new[, median(time)],
+       new100[, median(time)], 
+       prop_faster = abs(new100[, mean(time < omed)] - old[, mean(time < nmed)]))
 }
-```
 
-```{r single-yes-no, fig.cap="No NAs, len(yes)=len(no)=1"}
-test1 <- sample(c(TRUE, FALSE), size = 1e6, replace = TRUE)
-yes1 <- 1L
-no1 <- -1L
-print_mb(microbenchmark(ifelse(test1, yes1, no1), base::ifelse(test1, yes1, no1)))
-```
-
-```{r multi-yes-no, fig.cap="No NAs, len(yes)=len(no)=len(test)"}
-test1 <- sample(c(TRUE, FALSE), size = 1e6, replace = TRUE)
-yes1 <- 1:1e6
-no1 <- -yes1
-print_mb(microbenchmark(ifelse(test1, yes1, no1), base::ifelse(test1, yes1, no1)))
-```
-
-```{r multi-yes-no-NAs, fig.cap="NAs, len(yes)=len(no)=len(test)"}
-test3 <- test1
-test3[5e5] <- NA
-print_mb(microbenchmark(ifelse(test3, yes1, no1), base::ifelse(test3, yes1, no1)))
-```
-
-```{r small-test-single-yes-no}
-for (pow in 1:4) {
-  test1 <- sample(c(TRUE, FALSE), size = 10^pow, replace = TRUE)
-  yes1 <- 1L
-  no1 <- -1L
-  print(prettyNum(10^pow, big.mark = ","))
-  print_mb(microbenchmark(ifelse(test1, yes1, no1), base::ifelse(test1, yes1, no1)))
-}
+DT <- 
+  CJ(n = c(1:10, 10*(2:10), 50*(3:10), 750, 1000*(1:10), 10e3, 50e3, 100e3),
+     yes1 = c(TRUE, FALSE), 
+     include_NA = c(TRUE, FALSE))
+DT[, I := .I]
+DT[, c("old", "new", "new100", "prop_faster") := get_avg_time(n, yes1, include_NA), by = "I"]
+DT[, f1 := "without NAs"]
+DT[(include_NA), f1 := "with NAs"]
+DT[, f2 := "yes length-n"]
+DT[(yes1), f2 := "yes length-1"]
+ggplot(melt(DT, measure.vars = c("old", "new", "new100"))[, `time (ms)` := value / 1e6],
+       aes(x = n, y = `time (ms)`, color = variable, alpha = prop_faster)) + 
+  geom_line(size = 1.1) + 
+  facet_wrap(~ f2 + f1) + 
+  scale_x_log10(labels = scales::comma, breaks = c(1, 10, 100, 1000, 100e3)) + 
+  scale_y_log10(labels = scales::comma)
 ```
 
 
